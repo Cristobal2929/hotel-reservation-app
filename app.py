@@ -13,7 +13,7 @@ from sqlalchemy import (Column, Integer, String, Date, DateTime, Enum,
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
 # ----------------------------------------------------------------------
-# Configuration
+# Configuration (read from environment)
 # ----------------------------------------------------------------------
 DATABASE_URL = "sqlite:///./hotel.db"
 SMTP_SERVER = os.environ.get("SMTP_SERVER", "")
@@ -59,8 +59,10 @@ class Reserva(Base):
     fecha_checkout = Column(Date, nullable=False)
     num_huespedes = Column(Integer, nullable=False)
     solicitudes = Column(String, nullable=True)
-    estado = Column(Enum("pendiente", "confirmada", "cancelada", name="estado_enum"),
-                    default="pendiente")
+    estado = Column(
+        Enum("pendiente", "confirmada", "cancelada", name="estado_enum"),
+        default="pendiente",
+    )
     referencia = Column(String, unique=True, nullable=False)
     fecha_creacion = Column(DateTime, default=func.now())
 
@@ -87,9 +89,7 @@ security = HTTPBasic()
 
 
 def verify_admin(credentials: HTTPBasicCredentials = Depends(security)):
-    correct_user = ADMIN_USER
-    correct_pass = ADMIN_PASS
-    if (credentials.username != correct_user) or (credentials.password != correct_pass):
+    if (credentials.username != ADMIN_USER) or (credentials.password != ADMIN_PASS):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
@@ -103,7 +103,7 @@ def verify_admin(credentials: HTTPBasicCredentials = Depends(security)):
 # ----------------------------------------------------------------------
 def send_confirmation_email(to_email: str, nombre: str, referencia: str):
     if not SMTP_SERVER:
-        return  # SMTP not configured; skip sending
+        return
     msg = EmailMessage()
     msg["Subject"] = "Reservation Confirmation"
     msg["From"] = SMTP_USER
@@ -116,8 +116,8 @@ def send_confirmation_email(to_email: str, nombre: str, referencia: str):
             if SMTP_USER and SMTP_PASSWORD:
                 server.login(SMTP_USER, SMTP_PASSWORD)
             server.send_message(msg)
-    except Exception as e:
-        # In production you would log this error
+    except Exception:
+        # In production you would log the error
         pass
 
 
@@ -130,34 +130,38 @@ def generate_reference() -> str:
 # ----------------------------------------------------------------------
 @app.get("/", response_class=HTMLResponse)
 def home():
+    """Rich home page with hotel description, amenities and gallery."""
     html = """
     <!doctype html>
     <html lang="en">
     <head>
-        <title>Hotel</title>
+        <title>Hotel Paradise</title>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
         <style>
-            body {margin:0; font-family:Arial,Helvetica,sans-serif;}
+            body {font-family:Arial,Helvetica,sans-serif;background:#FFFFFF;color:#000000;}
+            .navbar {background:#003366;}
             .hero {
                 background-image: url('https://images.unsplash.com/photo-1501117716987-c8e5b5e1b7c5');
                 background-size: cover;
                 background-position: center;
-                height: 80vh;
+                height: 70vh;
                 display:flex;
                 align-items:center;
                 justify-content:center;
-                color:#fff;
+                color:#FFFFFF;
                 text-align:center;
             }
-            .btn-gold {background:#DAA520;color:#fff;}
+            .btn-gold {background:#DAA520;color:#FFFFFF;}
+            .section-title {color:#003366;margin-top:2rem;margin-bottom:1rem;}
+            .gallery img {width:100%;height:auto;border-radius:5px;}
         </style>
     </head>
     <body>
-        <nav class="navbar navbar-expand-lg navbar-dark" style="background:#003366;">
+        <nav class="navbar navbar-expand-lg navbar-dark">
           <div class="container-fluid">
-            <a class="navbar-brand" href="/">Hotel</a>
+            <a class="navbar-brand" href="/">Hotel Paradise</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
                     data-bs-target="#navbarNav" aria-controls="navbarNav"
                     aria-expanded="false" aria-label="Toggle navigation">
@@ -165,20 +169,67 @@ def home():
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
               <ul class="navbar-nav ms-auto">
-                <li class="nav-item"><a class="nav-link" href="/">Home</a></li>
+                <li class="nav-item"><a class="nav-link active" href="/">Home</a></li>
                 <li class="nav-item"><a class="nav-link" href="/rooms">Rooms</a></li>
                 <li class="nav-item"><a class="nav-link" href="/admin">Admin</a></li>
               </ul>
             </div>
           </div>
         </nav>
+
         <section class="hero">
             <div>
-                <h1>Welcome to Our Hotel</h1>
-                <p>Experience comfort and luxury.</p>
+                <h1>Welcome to Hotel Paradise</h1>
+                <p>Luxury, comfort and unforgettable experiences.</p>
                 <a href="/rooms" class="btn btn-gold btn-lg">Reserve Now</a>
             </div>
         </section>
+
+        <section class="container py-5">
+            <h2 class="section-title">About Our Hotel</h2>
+            <p>
+                Nestled in the heart of the city, Hotel Paradise offers a perfect blend of modern
+                elegance and classic hospitality. Our rooms are designed to provide maximum comfort,
+                while our facilities include a rooftop pool, a full-service spa, and a gourmet restaurant.
+                Whether you are traveling for business or leisure, our dedicated staff will ensure
+                a memorable stay.
+            </p>
+        </section>
+
+        <section class="container py-5">
+            <h2 class="section-title">Amenities</h2>
+            <ul class="list-group">
+                <li class="list-group-item">Free high‑speed Wi‑Fi</li>
+                <li class="list-group-item">24‑hour front desk</li>
+                <li class="list-group-item">Rooftop swimming pool</li>
+                <li class="list-group-item">Full‑service spa</li>
+                <li class="list-group-item">Gym & fitness center</li>
+                <li class="list-group-item">Restaurant & bar</li>
+                <li class="list-group-item">Conference rooms</li>
+                <li class="list-group-item">Parking garage</li>
+            </ul>
+        </section>
+
+        <section class="container py-5">
+            <h2 class="section-title">Gallery</h2>
+            <div class="row gallery">
+                <div class="col-md-4 mb-3"><img src="https://images.unsplash.com/photo-1560185127-6a8c5c5c8c5b" alt="Lobby"></div>
+                <div class="col-md-4 mb-3"><img src="https://images.unsplash.com/photo-1582719478250-9c6c5c5c5c5d" alt="Room"></div>
+                <div class="col-md-4 mb-3"><img src="https://images.unsplash.com/photo-1556912995-9c5c5c5c5c5e" alt="Pool"></div>
+                <div class="col-md-4 mb-3"><img src="https://images.unsplash.com/photo-1522708323590-47c2c5c5c5c5f" alt="Restaurant"></div>
+                <div class="col-md-4 mb-3"><img src="https://images.unsplash.com/photo-1542314831-068cd1c5c5c5g" alt="Spa"></div>
+                <div class="col-md-4 mb-3"><img src="https://images.unsplash.com/photo-1502672260266-1c1c5c5c5c5h" alt="Gym"></div>
+            </div>
+        </section>
+
+        <footer class="bg-light py-4">
+            <div class="container text-center">
+                <p>&copy; 2024 Hotel Paradise. All rights reserved.</p>
+                <p>Contact: info@hotelparadise.com | +1 234 567 890</p>
+            </div>
+        </footer>
+
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     </body>
     </html>
     """
@@ -211,14 +262,12 @@ def list_rooms(db: SessionLocal = Depends(get_db)):
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-        <style>
-            .btn-gold {{background:#DAA520;color:#fff;}}
-        </style>
+        <style>.btn-gold {{background:#DAA520;color:#fff;}}</style>
     </head>
     <body>
         <nav class="navbar navbar-expand-lg navbar-dark" style="background:#003366;">
           <div class="container-fluid">
-            <a class="navbar-brand" href="/">Hotel</a>
+            <a class="navbar-brand" href="/">Hotel Paradise</a>
             <div class="collapse navbar-collapse">
               <ul class="navbar-nav ms-auto">
                 <li class="nav-item"><a class="nav-link" href="/">Home</a></li>
@@ -252,14 +301,12 @@ def reserve_form(room_id: int, db: SessionLocal = Depends(get_db)):
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-        <style>
-            .btn-gold {{background:#DAA520;color:#fff;}}
-        </style>
+        <style>.btn-gold {{background:#DAA520;color:#fff;}}</style>
     </head>
     <body>
         <nav class="navbar navbar-expand-lg navbar-dark" style="background:#003366;">
           <div class="container-fluid">
-            <a class="navbar-brand" href="/">Hotel</a>
+            <a class="navbar-brand" href="/">Hotel Paradise</a>
           </div>
         </nav>
         <div class="container py-4">
@@ -327,7 +374,7 @@ def process_reservation(
     room = db.query(Habitacion).filter(Habitacion.id == room_id).first()
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
-    # Simple availability check: ensure no overlapping confirmed reservation
+    # Availability check: no overlapping confirmed reservation
     overlapping = (
         db.query(Reserva)
         .filter(
@@ -362,11 +409,10 @@ def process_reservation(
     db.add(reserva)
     db.commit()
     db.refresh(reserva)
-    # Send email (optional)
+    # Send confirmation email (optional)
     send_confirmation_email(email, nombre, referencia)
     # Redirect to confirmation page
-    redirect_url = f"/confirmation?ref={referencia}"
-    return RedirectResponse(url=redirect_url, status_code=303)
+    return RedirectResponse(url=f"/confirmation?ref={referencia}", status_code=303)
 
 
 @app.get("/confirmation", response_class=HTMLResponse)
@@ -392,7 +438,7 @@ def confirmation_page(ref: str, db: SessionLocal = Depends(get_db)):
     <body>
         <nav class="navbar navbar-expand-lg navbar-dark" style="background:#003366;">
           <div class="container-fluid">
-            <a class="navbar-brand" href="/">Hotel</a>
+            <a class="navbar-brand" href="/">Hotel Paradise</a>
           </div>
         </nav>
         <div class="container py-4">
@@ -453,7 +499,7 @@ def admin_dashboard(db: SessionLocal = Depends(get_db)):
     <!doctype html>
     <html lang="en">
     <head>
-        <title>Admin</title>
+        <title>Admin Dashboard</title>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -589,7 +635,6 @@ def api_create_reserva(
     db: SessionLocal = Depends(get_db),
     _: bool = Depends(verify_admin),
 ):
-    # Reuse reservation logic (simplified, no redirect)
     checkin = datetime.datetime.strptime(fecha_checkin, "%Y-%m-%d").date()
     checkout = datetime.datetime.strptime(fecha_checkout, "%Y-%m-%d").date()
     if checkin >= checkout:
@@ -695,16 +740,15 @@ def startup_populate():
             },
         ]
         for r in sample_rooms:
-            room = Habitacion(**r)
-            db.add(room)
+            db.add(Habitacion(**r))
         db.commit()
     db.close()
 
 
 # ----------------------------------------------------------------------
-# Run
+# Run with uvicorn
 # ----------------------------------------------------------------------
 if __name__ == "__main__":
-    import os, uvicorn
+    import uvicorn
 
     uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
